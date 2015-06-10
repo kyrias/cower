@@ -48,6 +48,7 @@
 #include <curl/curl.h>
 #include <openssl/crypto.h>
 #include <yajl/yajl_parse.h>
+#include <git2.h>
 
 /* macros */
 #define UNUSED                __attribute__((unused))
@@ -769,6 +770,7 @@ void *download(CURL *curl, void *arg)
 	alpm_list_t *queryresult = NULL;
 	aurpkg_t *result;
 	CURLcode curlstat;
+	git_repository *repo = NULL;
 	char *url;
 	int ret;
 	long httpcode;
@@ -792,42 +794,14 @@ void *download(CURL *curl, void *arg)
 		return NULL;
 	}
 
-	curl_easy_setopt(curl, CURLOPT_ENCODING, "identity"); /* disable compression */
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_response);
-
 	result = queryresult->data;
-	cwr_asprintf(&url, AUR_BASE_URL "%s", result->urlpath);
-	curl_easy_setopt(curl, CURLOPT_URL, url);
+	cwr_asprintf(&url, AUR_BASE_URL "/%s.git", result->pkgbase);
 
-	cwr_printf(LOG_DEBUG, "[%s]: curl_easy_perform %s\n", (const char*)arg, url);
-	curlstat = curl_easy_perform(curl);
-
-	if(curlstat != CURLE_OK) {
-		cwr_fprintf(stderr, LOG_BRIEF, BRIEF_ERR "\t%s\t", (const char*)arg);
-		cwr_fprintf(stderr, LOG_ERROR, "[%s]: %s\n", (const char*)arg, curl_easy_strerror(curlstat));
-		goto finish;
-	}
-
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpcode);
-	cwr_printf(LOG_DEBUG, "[%s]: server responded with %ld\n", (const char *)arg, httpcode);
-
-	switch(httpcode) {
-		case 200:
-			break;
-		default:
-			cwr_fprintf(stderr, LOG_BRIEF, BRIEF_ERR "\t%s\t", (const char*)arg);
-			cwr_fprintf(stderr, LOG_ERROR, "[%s]: server responded with HTTP %ld\n",
-					(const char*)arg, httpcode);
-			goto finish;
-	}
-
-	ret = archive_extract_file(&response);
-	if(ret != 0) {
-		cwr_fprintf(stderr, LOG_BRIEF, BRIEF_ERR "\t%s\t", (const char*)arg);
-		cwr_fprintf(stderr, LOG_ERROR, "[%s]: failed to extract tarball: %s\n",
-				(const char*)arg, strerror(ret));
-		goto finish;
+	int error = git_clone(&repo, url, result->pkgbase, NULL);
+	if (error != 0) {
+		const git_error *err = giterr_last();
+		if (err) { printf("ERROR %d: %s\n", err->klass, err->message); }
+		else     { printf("ERROR %d: no detailed info\n", error); }
 	}
 
 	cwr_printf(LOG_BRIEF, BRIEF_OK "\t%s\t", result->name);
@@ -841,6 +815,7 @@ void *download(CURL *curl, void *arg)
 finish:
 	free(url);
 	free(response.data);
+	git_repository_free(repo);
 
 	return queryresult;
 }
@@ -2485,6 +2460,8 @@ int main(int argc, char *argv[]) {
 	cwr_printf(LOG_DEBUG, "initializing curl\n");
 	ret = curl_global_init(CURL_GLOBAL_ALL);
 	openssl_crypto_init();
+	cwr_printf(LOG_DEBUG, "initializing libgit2\n");
+	git_libgit2_init();
 
 	if(ret != 0) {
 		cwr_fprintf(stderr, LOG_ERROR, "failed to initialize curl\n");
@@ -2570,6 +2547,9 @@ finish:
 
 	cwr_printf(LOG_DEBUG, "releasing curl\n");
 	curl_global_cleanup();
+
+	cwr_printf(LOG_DEBUG, "releasing libgit2\n");
+	git_libgit2_shutdown();
 
 	cwr_printf(LOG_DEBUG, "releasing alpm\n");
 	alpm_release(pmhandle);

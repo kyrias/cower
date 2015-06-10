@@ -12,6 +12,7 @@ MANPREFIX ?= $(PREFIX)/share/man
 
 CPPFLAGS  := -D_GNU_SOURCE -DCOWER_VERSION=\"$(VERSION)\" $(CPPFLAGS)
 CFLAGS    := -std=c99 -g -pedantic -Wall -Wextra -pthread $(CFLAGS)
+CFLAGS    += $(shell pkg-config --cflags --libs libgit2)
 LDFLAGS   := -pthread $(LDFLAGS)
 LDLIBS     = -lcurl -lalpm -lyajl -larchive -lcrypto
 

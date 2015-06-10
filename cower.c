@@ -227,7 +227,6 @@ static void aurpkg_free(void*);
 static void aurpkg_free_inner(aurpkg_t*);
 static const char *category_id_to_string(size_t id);
 static CURL *curl_init_easy_handle(CURL*);
-static size_t curl_write_response(void*, size_t, size_t, void*);
 static int cwr_asprintf(char**, const char*, ...) __attribute__((format(printf,2,3)));
 static int cwr_fprintf(FILE*, loglevel_t, const char*, ...) __attribute__((format(printf,3,4)));
 static int cwr_printf(loglevel_t, const char*, ...) __attribute__((format(printf,2,3)));
@@ -703,36 +702,12 @@ CURL *curl_init_easy_handle(CURL *handle)
 	return handle;
 }
 
-size_t curl_write_response(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-	void *newdata;
-	size_t realsize = size * nmemb;
-	struct response_t *mem = stream;
-
-	newdata = realloc(mem->data, mem->size + realsize + 1);
-	if(newdata) {
-		mem->data = newdata;
-		memcpy(&(mem->data[mem->size]), ptr, realsize);
-		mem->size += realsize;
-		mem->data[mem->size] = '\0';
-	} else {
-		cwr_fprintf(stderr, LOG_ERROR, "failed to reallocate %zd bytes\n",
-				mem->size + realsize + 1);
-		return 0;
-	}
-
-	return realsize;
-}
-
 void *download(CURL *curl, void *arg)
 {
 	alpm_list_t *queryresult = NULL;
 	aurpkg_t *result;
-	CURLcode curlstat;
 	git_repository *repo = NULL;
 	char *url;
-	int ret;
-	long httpcode;
 	struct response_t response = { 0, 0 };
 
 	curl = curl_init_easy_handle(curl);

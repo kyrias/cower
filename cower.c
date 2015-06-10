@@ -67,7 +67,7 @@ static inline void freep(void *p) { free(*(void**) p); }
 	#define PACMAN_CONFIG       "/etc/pacman.conf"
 #endif
 
-#define AUR_BASE_URL          "https://aur.archlinux.org"
+#define AUR_BASE_URL          "https://aur4.archlinux.org"
 #define AUR_PKG_URL_FORMAT    AUR_BASE_URL "/packages/"
 #define AUR_RPC_URL           AUR_BASE_URL "/rpc.php?type=%s&arg=%s&v=3"
 
